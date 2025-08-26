@@ -4,18 +4,18 @@
  * Embeddable widget with refreshed, modern design.
  */
 
-const path = require('path');
-app.use('/public', express.static(path.join(__dirname, 'public')));
-
 const express = require('express');
 const app = express();
+const path = require('path');
+// Serve everything in /public (this is where your JSON lives)
+app.use('/public', express.static(path.join(__dirname, 'public')));
 const PORT = process.env.PORT || 3000;
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const encode = encodeURIComponent;
 
 function agodaDeepLink({ hotelName, city, checkIn, checkOut, adults = 2, rooms = 1 }) {
-  const cid = process.env.AGODA_AFFILIATE_CID || 'YOUR_AGODA_CID';
+  const cid = process.env.AGODA_AFFILIATE_CID || '1948292:71343e83-15b3-4fd9-899f-8766e525ccc2';
   const query = [hotelName, city].filter(Boolean).join(' ');
   return `https://www.agoda.com/search?cid=${encode(cid)}&city=0&checkIn=${encode(checkIn)}&checkOut=${encode(checkOut)}&adults=${adults}&rooms=${rooms}&text=${encode(query)}`;
 }
@@ -27,7 +27,7 @@ function pricelineDeepLink({ hotelName, city, checkIn, checkOut, adults = 2, roo
 }
 
 function expediaDeepLink({ hotelName, city, checkIn, checkOut, adults = 2, rooms = 1 }) {
-  const partner = process.env.EXPEDIA_PARTNER_ATTR || 'YOUR_EXPEDIA_ATTR';
+  const partner = process.env.EXPEDIA_PARTNER_ATTR || '1011l409377';
   const query = [hotelName, city].filter(Boolean).join(' ');
   return `https://www.expedia.com/Hotel-Search?destination=${encode(query)}&startDate=${encode(checkIn)}&endDate=${encode(checkOut)}&adults=${adults}&rooms=${rooms}&partner=${encode(partner)}`;
 }
@@ -56,119 +56,145 @@ app.get('/api/search', async (req,res)=>{
   const results = await Promise.all(PROVIDERS.map(p=>p(params)));
   res.json({ currency, items: results });
 });
+  async function adapterAgoda(params){
+  // ... call Agoda Long Tail API with params.cityId, dates, etc.
+  // Suppose the response has `results` array:
+  const results = (apiResponse && apiResponse.results) ? apiResponse.results : [];
+  return {
+    provider: 'Agoda',
+    hotels: results,           // <— add this array
+    // deeplink: ... (optional)
+  };
+}
 
-app.get(['/','/widget'], (_req,res)=>{
-  res.setHeader('Content-Type','text/html');
-  res.end(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Hotel Price Compare (Affiliate)</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root{
-      --bg: #0b0f1a;
-      --bg2: #161c2f;
-      --card: rgba(255,255,255,0.06);
-      --line: rgba(255,255,255,0.12);
-      --text: #e9edff;
-      --muted: #b9c3ff;
-      --primary: #6aa1ff;
-      --primary-2: #7b5bff;
-      --ok:#36d399;
-      --warn:#ffd166;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      color:var(--text);
-      background: radial-gradient(1200px 600px at 10% -10%, #1d2440 0%, rgba(29,36,64,0) 60%),
-                  radial-gradient(1000px 500px at 100% 10%, #1b2b55 0%, rgba(27,43,85,0) 60%),
-                  linear-gradient(180deg, #0b0f1a 0%, #0b0f1a 100%);
-    }
-    .wrap{ max-width: 1100px; margin: 28px auto; padding: 16px; }
 
-    /* Card */
-    .card{ border:1px solid var(--line); border-radius: 18px; overflow:hidden;
-      backdrop-filter: blur(10px); background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
-      box-shadow: 0 20px 50px rgba(0,0,0,.35);
-      animation: floatIn .5s ease; }
-    @keyframes floatIn { from{ opacity:0; transform: translateY(12px); } to{ opacity:1; transform:none; } }
-
-    .head{ display:flex; align-items:center; justify-content:space-between; gap:16px; padding: 18px 22px; border-bottom:1px solid var(--line); }
-    .brand{ display:flex; align-items:center; gap:12px; }
-    .logo{ width:36px; height:36px; border-radius:10px; background: linear-gradient(135deg, var(--primary), var(--primary-2)); display:grid; place-items:center; font-weight:800; }
-    .title{ margin:0; font-size:18px; font-weight:700; letter-spacing:.2px; color:var(--muted); }
-    .badge{ font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid var(--line); background: rgba(255,255,255,.05); color:#d8deff; }
-
-    /* Form */
-    form{ display:grid; grid-template-columns: 1.2fr 1fr 1fr 1fr .75fr .75fr auto; gap:12px; padding:18px; }
-    input, button{ height:44px; border-radius:12px; border:1px solid var(--line); background: rgba(255,255,255,.06); color:var(--text); padding:0 12px; font-size:14px; transition: all .2s ease; }
-    input::placeholder{ color:#cbd3ff; opacity:.7 }
-    input:focus{ outline:none; border-color:#9db5ff; box-shadow: 0 0 0 3px rgba(106,161,255,.25); background: rgba(255,255,255,.09) }
-    button{ background: linear-gradient(135deg, var(--primary), var(--primary-2)); border:none; font-weight:700; letter-spacing:.2px; cursor:pointer }
-    button:hover{ filter: brightness(1.07) }
-
-    /* Table */
-    .results{ padding: 0 18px 18px; }
-    table{ width:100%; border-collapse: separate; border-spacing:0; overflow:hidden; border-radius: 14px; border:1px solid var(--line); background: rgba(255,255,255,.03) }
-    thead th{ text-transform:uppercase; letter-spacing:.12em; font-size:11px; color:#c9d3ff; padding:14px 16px; background: rgba(255,255,255,.06); position: sticky; top:0; backdrop-filter: blur(8px); }
-    tbody td{ padding:16px; border-top:1px solid rgba(255,255,255,.07); }
-    tbody tr{ transition: background .18s ease, transform .18s ease }
-    tbody tr:hover{ background: rgba(255,255,255,.05); transform: translateY(-1px) }
-
-    .provider{ display:flex; align-items:center; gap:12px; }
-    .provIcon{ width:28px; height:28px; border-radius:8px; background: #1c2348; display:grid; place-items:center; font-size:12px; font-weight:800 }
-    .price{ font-weight:800; font-size:16px }
-    .rowok{ color: var(--ok); font-size:12px; font-weight:800; margin-left:8px }
-
-    .cta{ display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid var(--line); background: rgba(255,255,255,.05); text-decoration:none; color:var(--text); font-weight:700; }
-    .cta:hover{ background: rgba(255,255,255,.08) }
-
-    .hint{ font-size:13px; color:#cbd5ff; opacity:.85; padding: 14px; }
-    footer{ font-size:12px; color:#cbd5ff; opacity:.75; padding: 12px 18px 18px; }
-
-    @media (max-width: 980px){ form{ grid-template-columns: 1fr 1fr 1fr; } }
-  </style>
+app.get('/widget', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<title>Lodging Compare</title>
+<style>
+  body{margin:0;background:#0b0f1a;color:#fff;font-family:Inter,system-ui}
+  .wrap{max-width:1200px;margin:28px auto;padding:0 16px}
+  .search{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px;margin-bottom:16px}
+  .row{display:grid;grid-template-columns:1.4fr 1fr 1fr .8fr auto;gap:10px}
+  input,button{height:44px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;padding:0 12px}
+  button{background:linear-gradient(135deg,#6aa1ff,#7b5bff);border:0;font-weight:700;cursor:pointer}
+  .citywrap{position:relative}
+  .suggest{position:absolute;top:46px;left:0;right:0;background:#0f1424;border:1px solid rgba(255,255,255,.12);
+    border-radius:12px;max-height:260px;overflow:auto;display:none;z-index:10}
+  .suggest div{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer}
+  .layout{display:grid;grid-template-columns:420px 1fr 220px;gap:16px}
+  .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden}
+  .hd{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.12);color:#cdd4ff;font-size:14px}
+  .bd{padding:12px}
+  .map{height:420px;background:#0e1322;border:1px solid rgba(255,255,255,.12);border-radius:10px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .hotel{display:flex;gap:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:12px;overflow:hidden}
+  .img{width:120px;height:120px;background:linear-gradient(135deg,#2a3353,#1b2240)}
+  .title{font-weight:700}.meta{font-size:12px;color:#c8d0f6}.price{font-weight:800}
+  .cta{display:inline-block;margin-top:2px;padding:8px 10px;background:rgba(123,91,255,.18);border:1px solid #7b5bff;border-radius:8px;color:#cfd6ff;text-decoration:none;font-weight:700}
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .btn{display:flex;align-items:center;justify-content:center;height:44px;border-radius:10px;border:1px solid rgba(255,255,255,.12);text-decoration:none;color:#fff;font-weight:700}
+  .exp{background:#002a5c}.prc{background:#0071c2}.htl{background:#d32f2f}.bkg{background:#f39c12;color:#222}
+  .muted{color:#a9b3c9;font-size:12px}
+</style>
 </head>
 <body>
-  <div class="container">
-    <div class="card">
-      <div class="header"><h1>Compare Hotel Prices</h1><span class="badge">Affiliate Demo</span></div>
-      <form id="f">
-        <input name="hotelName" placeholder="Hotel name" />
-        <input name="city" placeholder="City" />
-        <input name="checkIn" type="date" />
-        <input name="checkOut" type="date" />
-        <input name="adults" type="number" value="2" min="1" max="12" />
-        <input name="rooms" type="number" value="1" min="1" max="8" />
-        <button type="submit">Search</button>
-      </form>
-      <div id="results">
-        <table><thead><tr><th>Provider</th><th>Price*</th><th></th></tr></thead><tbody id="tbody"><tr><td colspan="3" class="hint">Enter details and click Search.</td></tr></tbody></table>
+<div class="wrap">
+
+  <!-- Search -->
+  <div class="search">
+    <form id="f" class="row">
+      <div class="citywrap">
+        <input id="cityInput" placeholder="City, State/Province, Country" autocomplete="off">
+        <div id="suggest" class="suggest"></div>
       </div>
-    </div>
+      <input id="ci" type="date"><input id="co" type="date"><input id="guests" type="number" min="1" value="2">
+      <button>Search Comparisons</button>
+      <input id="cityId" type="hidden"><input id="country" type="hidden"><input id="region" type="hidden">
+    </form>
+    <div class="muted" style="margin-top:6px">Pick a suggestion; CityID stays hidden and is only sent to the backend.</div>
   </div>
+
+  <!-- Layout -->
+  <div class="layout">
+    <div class="card"><div class="hd">Map</div><div class="bd"><div class="map" id="map"></div></div></div>
+    <div class="card"><div class="hd">Agoda Results</div><div class="bd grid" id="grid"></div></div>
+    <div class="card"><div class="hd">Compare on</div><div class="bd stack">
+      <a id="exp" class="btn exp" target="_blank">Expedia</a>
+      <a id="prc" class="btn prc" target="_blank">Priceline</a>
+      <a id="htl" class="btn htl" target="_blank">Hotels.com</a>
+      <a id="bkg" class="btn bkg" target="_blank">Booking.com</a>
+    </div></div>
+  </div>
+</div>
+
 <script>
-const f=document.getElementById('f');
-const tbody=document.getElementById('tbody');
-function row(item,currency){
-  let price=item.price? new Intl.NumberFormat('en-US',{style:'currency',currency}).format(item.price):'Check site';
-  return `<tr><td><span class="badge">${item.provider}</span></td><td class="price">${price}</td><td><a class="cta" href="${item.deeplink}" target="_blank">Book</a></td></tr>`;
+let cities=[]; const cityInput = document.getElementById('cityInput');
+const suggest=document.getElementById('suggest'); const cityIdEl=document.getElementById('cityId');
+const countryEl=document.getElementById('country'); const regionEl=document.getElementById('region');
+
+// Load city list (served from /public)
+(async ()=>{
+  const res = await fetch('/public/data/agoda_city_ids_all.json'); cities = await res.json();
+  cities = cities.map(x=>({id:+x.city_id, city:String(x.city_name||'').trim(), country:String(x.country||'').trim(), region:String(x.region||'').trim()}))
+                 .filter(x=>x.id && x.city);
+})();
+
+function show(opts){
+  suggest.innerHTML = opts.map(o=>\`<div data-id="\${o.id}" data-city="\${o.city}" data-country="\${o.country}" data-region="\${o.region}">
+    \${[o.city,o.region||null,o.country||null].filter(Boolean).join(', ')} — CityID \${o.id}</div>\`).join('');
+  suggest.style.display = opts.length?'block':'none';
 }
-f.addEventListener('submit',async e=>{
+
+let t; cityInput.addEventListener('input', e=>{
+  clearTimeout(t); const q=e.target.value.toLowerCase().trim(); if(!q){suggest.style.display='none';return;}
+  t=setTimeout(()=>{ const m=cities.filter(o=>(o.city+' '+o.region+' '+o.country).toLowerCase().includes(q)).slice(0,25); show(m); },120);
+});
+suggest.addEventListener('click', e=>{
+  const row=e.target.closest('div[data-id]'); if(!row) return;
+  const id=row.dataset.id, c=row.dataset.city, country=row.dataset.country||'', reg=row.dataset.region||'';
+  cityInput.value=[c,reg||null,country||null].filter(Boolean).join(', ');
+  cityIdEl.value=id; countryEl.value=country; regionEl.value=reg; suggest.style.display='none';
+});
+document.addEventListener('click',e=>{ if(!suggest.contains(e.target)&&e.target!==cityInput) suggest.style.display='none'; });
+
+function hotelCard(h){
+  const img=h.imageURL||''; const t=(h.hotelName||'').replace(/</g,'&lt;');
+  const price=h.dailyRate? new Intl.NumberFormat('en-US',{style:'currency',currency:(h.currency||'USD')}).format(h.dailyRate):'Check site';
+  const meta=\`\${h.starRating||'–'}★ • \${h.reviewScore||'–'}/10\`; const link=h.landingURL||'#';
+  return \`<div class="hotel"><div class="img" style="\${img?` + "`" + `background:url('\${img}') center/cover` + "`" + `:''}"></div>
+    <div style="padding:10px 12px"><div class="title">\${t}</div><div class="meta">\${meta}</div>
+    <div class="price">\${price}</div><a class="cta" href="\${link}" target="_blank">Book</a></div></div>\`;
+}
+function setDeeplinks({label,country,ci,co,guests}){
+  const dest=encodeURIComponent([label,country].filter(Boolean).join(', '));
+  // TODO: put your affiliate params
+  document.getElementById('exp').href=\`https://www.expedia.com/Hotel-Search?destination=\${dest}&startDate=\${ci}&endDate=\${co}&adults=\${guests}&partner=YOUR_EXPEDIA_ATTR\`;
+  document.getElementById('prc').href=\`https://www.priceline.com/relax/at?product=hotels&kw=\${dest}&checkin=\${ci}&checkout=\${co}&adults=\${guests}&refid=YOUR_PCLN_REFID\`;
+  document.getElementById('htl').href=\`https://www.hotels.com/Hotel-Search?destination=\${dest}&startDate=\${ci}&endDate=\${co}&adults=\${guests}\`;
+  document.getElementById('bkg').href=\`https://www.booking.com/searchresults.html?ss=\${dest}&checkin=\${ci}&checkout=\${co}&group_adults=\${guests}\`;
+}
+document.getElementById('f').addEventListener('submit', async e=>{
   e.preventDefault();
-  tbody.innerHTML='<tr><td colspan="3" class="hint">Searching…</td></tr>';
-  const fd=new FormData(f);const params=new URLSearchParams(fd);
-  const res=await fetch('/api/search?'+params.toString());
-  const data=await res.json();
-  if(!data.items.length){tbody.innerHTML='<tr><td colspan="3" class="hint">No results.</td></tr>';return;}
-  tbody.innerHTML=data.items.map(x=>row(x,data.currency)).join('');
+  const grid=document.getElementById('grid'); grid.innerHTML='<div class="muted" style="grid-column:1/-1">Loading…</div>';
+  const label=cityInput.value, ci=document.getElementById('ci').value, co=document.getElementById('co').value;
+  const guests=document.getElementById('guests').value||2, cityId=cityIdEl.value, country=countryEl.value;
+  setDeeplinks({label,country,ci,co,guests});
+
+  const qs=new URLSearchParams({cityId, city:label, checkIn:ci, checkOut:co, adults:guests, rooms:1}).toString();
+  try{
+    const r=await fetch('/api/search?'+qs); const data=await r.json();
+    const hotels=Array.isArray(data.hotels)?data.hotels:[];
+    grid.innerHTML = hotels.length ? hotels.slice(0,8).map(hotelCard).join('') :
+      '<div class="muted" style="grid-column:1/-1">No results from Agoda for these dates.</div>';
+  }catch(_){ grid.innerHTML='<div class="muted" style="grid-column:1/-1">Error fetching results.</div>'; }
 });
 </script>
-</body></n></html>`);
+</body></html>`);
 });
+
 
 app.listen(PORT,()=>console.log(`Hotels Compare Widget running on port ${PORT}`));
