@@ -4,6 +4,9 @@
  * Embeddable widget with refreshed, modern design.
  */
 
+const path = require('path');
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
