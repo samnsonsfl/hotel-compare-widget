@@ -197,37 +197,45 @@ app.get(['/','/widget'], (_req, res) => {
   </div>
 <script>
 const $ = sel => document.querySelector(sel);
-const tbody = $('#tbody');
-const f = $('#f');
+const tbody = document.querySelector('#tbody');
+const f = document.querySelector('#f');
+
+function esc(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m])); }
 
 function rowHtml(item, currency){
-  const price = item.price != null ? new Intl.NumberFormat('en-US',{style:'currency', currency}).format(item.price) : 'Check live';
-  return `<tr>
-    <td class="provider"><span class="badge">${item.provider}</span></td>
-    <td class="price">${price} ${item.price!=null?'<span class="rowok">• in demo</span>':''}</td>
-    <td><a class="cta" href="${item.deeplink}" target="_blank" rel="noopener">Book on ${item.provider}</a></td>
-  </tr>`;
+  var price = (item.price != null)
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: currency }).format(item.price)
+    : 'Check live';
+  var demo = (item.price != null) ? '<span class="rowok">• in demo</span>' : '';
+  return '<tr>'
+       + '<td class="provider"><span class="badge">' + esc(item.provider) + '</span></td>'
+       + '<td class="price">' + price + ' ' + demo + '</td>'
+       + '<td><a class="cta" href="' + esc(item.deeplink) + '" target="_blank" rel="noopener">Book on ' + esc(item.provider) + '</a></td>'
+       + '</tr>';
 }
 
-f.addEventListener('submit', async (e)=>{
+f.addEventListener('submit', async function(e){
   e.preventDefault();
-  const fd = new FormData(f);
-  const params = new URLSearchParams();
-  for (const [k,v] of fd.entries()) if (v) params.set(k, v);
+  var fd = new FormData(f);
+  var params = new URLSearchParams();
+  for (const pair of fd.entries()) {
+    var k = pair[0], v = pair[1];
+    if (v) params.set(k, v);
+  }
 
-  tbody.innerHTML = `<tr><td colspan=3 class="hint">Searching…</td></tr>`;
+  tbody.innerHTML = '<tr><td colspan="3" class="hint">Searching…</td></tr>';
 
   try {
-    const res = await fetch(`/api/search?${params.toString()}`);
+    const res = await fetch('/api/search?' + params.toString());
     if(!res.ok) throw new Error('Search failed');
     const data = await res.json();
     if(!data.items || !data.items.length){
-      tbody.innerHTML = `<tr><td colspan=3 class="hint">No offers returned. Try adjusting your query.</td></tr>`;
+      tbody.innerHTML = '<tr><td colspan="3" class="hint">No offers returned. Try adjusting your query.</td></tr>';
       return;
     }
-    tbody.innerHTML = data.items.map(x => rowHtml(x, data.currency||'USD')).join('');
+    tbody.innerHTML = data.items.map(function(x){ return rowHtml(x, data.currency || 'USD'); }).join('');
   } catch(err){
-    tbody.innerHTML = `<tr><td colspan=3 class="hint">Error: ${err.message}</td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="3" class="hint">Error: ' + esc(err.message) + '</td></tr>';
   }
 });
 </script>
