@@ -7,6 +7,13 @@
 const express = require('express');
 const app = express();
 const path = require('path');
+
+// DEBUG: see exactly where Express will look for /public files
+console.log('Serving /public from:', path.join(__dirname, 'public'));
+
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
+const path = require('path');
 // Serve everything in /public (this is where your JSON lives)
 app.use('/public', express.static(path.join(__dirname, 'public')));
 const PORT = process.env.PORT || 3000;
