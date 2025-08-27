@@ -173,4 +173,175 @@ document.getElementById('f').addEventListener('submit', async e=>{
   }catch(_){ grid.innerHTML='<div class="muted" style="grid-column:1/-1">Error fetching results.</div>'; }
 });
 </script>
+
+  <!-- Load Google Maps key from the server, then load Maps JS -->
+<script>
+async function loadGoogleMaps() {
+  try {
+    const r = await fetch('/api/maps-key');
+    const { key } = await r.json();
+    if (!key) { console.error("No Google Maps key returned"); return; }
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&callback=initMap`;
+    s.async = true;
+    document.head.appendChild(s);
+  } catch (err) { console.error("Failed to load Maps key", err); }
+}
+loadGoogleMaps();
+</script>
+
+<!-- Your app logic -->
+<script>
+// ====== MAP ======
+let map, markers=[];
+function initMap(){
+  const el = document.getElementById('map');
+  if (!el) return;
+  map = new google.maps.Map(el, {
+    center:{ lat:25.79065, lng:-80.13005 }, zoom:12,
+    styles:[{featureType:"poi",stylers:[{visibility:"off"}]}]
+  });
+}
+function clearMarkers(){ markers.forEach(m=>m.setMap(null)); markers=[]; }
+function plotHotels(hotels){
+  try {
+    if(!window.google || !map) return;
+    clearMarkers();
+    const bounds = new google.maps.LatLngBounds();
+    hotels.forEach(h=>{
+      if(typeof h.latitude==='number' && typeof h.longitude==='number'){
+        const pos = {lat:h.latitude, lng:h.longitude};
+        const m = new google.maps.Marker({ position: pos, map, title: h.hotelName });
+        markers.push(m); bounds.extend(pos);
+      }
+    });
+    if (!bounds.isEmpty()) map.fitBounds(bounds);
+  } catch(e){ console.error(e); }
+}
+
+// ====== AUTOCOMPLETE ======
+let cities = [];
+const cityInput = document.getElementById('cityInput');
+const suggest   = document.getElementById('suggest');
+const cityIdEl  = document.getElementById('cityId');
+const countryEl = document.getElementById('country');
+const regionEl  = document.getElementById('region');
+
+// Load city list once
+(async ()=>{
+  try{
+    const res = await fetch('/public/data/agoda_city_ids_all.json');
+    cities = await res.json();
+    cities = cities.map(x=>({
+      id: +x.city_id,
+      city: String(x.city_name||'').trim(),
+      country: String(x.country||'').trim(),
+      region: String(x.region||'').trim()
+    })).filter(x=>x.id && x.city);
+  }catch(e){ console.error('City list load failed', e); }
+})();
+
+// Render suggestions (NO CityID text shown)
+function renderSuggestions(list){
+  suggest.innerHTML = list.map(o => `
+    <div data-id="${o.id}" data-city="${o.city}" data-country="${o.country}" data-region="${o.region}">
+      ${[o.city, o.region||null, o.country||null].filter(Boolean).join(', ')}
+    </div>`).join('');
+  suggest.style.display = list.length ? 'block' : 'none';
+}
+
+let t; 
+cityInput.addEventListener('input', e=>{
+  clearTimeout(t);
+  const q = e.target.value.toLowerCase().trim();
+  if(!q){ suggest.style.display='none'; return; }
+  t = setTimeout(()=>{
+    const m = cities.filter(o => (o.city+' '+o.region+' '+o.country).toLowerCase().includes(q)).slice(0,25);
+    renderSuggestions(m);
+  }, 120);
+});
+
+suggest.addEventListener('click', e=>{
+  const row = e.target.closest('div[data-id]');
+  if(!row) return;
+  const id = row.dataset.id;
+  const c  = row.dataset.city;
+  const country = row.dataset.country || '';
+  const reg = row.dataset.region  || '';
+  // Show only City, Region, Country to the user
+  cityInput.value = [c, reg||null, country||null].filter(Boolean).join(', ');
+  // Store backend-only data
+  cityIdEl.value = id; countryEl.value = country; regionEl.value = reg;
+  suggest.style.display = 'none';
+});
+
+document.addEventListener('click', (e)=>{
+  if(!suggest.contains(e.target) && e.target !== cityInput){
+    suggest.style.display = 'none';
+  }
+});
+
+// ====== RESULTS & LINKS ======
+function hotelCard(h){
+  const img = h.imageURL || '';
+  const title = (h.hotelName || '').replace(/</g,'&lt;');
+  const price = h.dailyRate ? new Intl.NumberFormat('en-US',{style:'currency',currency:(h.currency||'USD')}).format(h.dailyRate) : 'Check site';
+  const meta  = `${h.starRating||'–'}★ • ${h.reviewScore||'–'}/10`;
+  const link  = h.landingURL || '#';
+  return `
+    <div class="hotel">
+      <div class="img" style="${img?`background:url('${img}') center/cover`:''}"></div>
+      <div style="padding:10px 12px">
+        <div class="title">${title}</div>
+        <div class="meta">${meta}</div>
+        <div class="price">${price}</div>
+        <a class="cta" href="${link}" target="_blank">Book</a>
+      </div>
+    </div>`;
+}
+
+function setDeeplinks({label,country,ci,co,guests}){
+  const dest = encodeURIComponent([label, country].filter(Boolean).join(', '));
+  document.getElementById('exp').href = `https://www.expedia.com/Hotel-Search?destination=${dest}&startDate=${ci}&endDate=${co}&adults=${guests}&partner=YOUR_EXPEDIA_ATTR`;
+  document.getElementById('prc').href = `https://www.priceline.com/relax/at?product=hotels&kw=${dest}&checkin=${ci}&checkout=${co}&adults=${guests}&refid=YOUR_PCLN_REFID`;
+  document.getElementById('htl').href = `https://www.hotels.com/Hotel-Search?destination=${dest}&startDate=${ci}&endDate=${co}&adults=${guests}`;
+  document.getElementById('bkg').href = `https://www.booking.com/searchresults.html?ss=${dest}&checkin=${ci}&checkout=${co}&group_adults=${guests}`;
+}
+
+// ====== FORM SUBMIT ======
+document.getElementById('f').addEventListener('submit', async e=>{
+  e.preventDefault(); // <- prevents page reload (so your inputs aren’t cleared)
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '<div class="muted" style="grid-column:1/-1">Loading…</div>';
+
+  const label  = cityInput.value;
+  const ci     = document.getElementById('ci').value;
+  const co     = document.getElementById('co').value;
+  const guests = document.getElementById('guests').value || 2;
+  const cityId = cityIdEl.value;
+  const country= countryEl.value;
+
+  // Build right-side compare links
+  setDeeplinks({label, country, ci, co, guests});
+
+  try{
+    const qs = new URLSearchParams({ cityId, city:label, checkIn:ci, checkOut:co, adults:guests, rooms:1 }).toString();
+    const r  = await fetch('/api/search?'+qs);
+    const data = await r.json();
+    const hotels = Array.isArray(data.hotels) ? data.hotels : [];
+
+    grid.innerHTML = hotels.length 
+      ? hotels.slice(0,8).map(hotelCard).join('') 
+      : '<div class="muted" style="grid-column:1/-1">No results from Agoda for these dates.</div>';
+
+    // drop pins on map
+    plotHotels(hotels);
+
+  }catch(err){
+    console.error(err);
+    grid.innerHTML = '<div class="muted" style="grid-column:1/-1">Error fetching results.</div>';
+  }
+});
+</script>
+
 </body></html>
