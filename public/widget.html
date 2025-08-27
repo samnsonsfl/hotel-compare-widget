@@ -70,11 +70,16 @@ const countryEl=document.getElementById('country'); const regionEl=document.getE
                  .filter(x=>x.id && x.city);
 })();
 
+<script>
 function show(opts){
-  suggest.innerHTML = opts.map(o=>'<div data-id="'+o.id+'" data-city="'+o.city+'" data-country="'+o.country+'" data-region="'+o.region+'">'+
-    [o.city,o.region||null,o.country||null].filter(Boolean).join(', ')+' — CityID '+o.id+'</div>').join('');
-  suggest.style.display = opts.length?'block':'none';
+  // Show only City, Region, Country
+  suggest.innerHTML = opts.map(o => `
+    <div data-id="${o.id}" data-city="${o.city}" data-country="${o.country}" data-region="${o.region}">
+      ${[o.city, o.region || null, o.country || null].filter(Boolean).join(', ')}
+    </div>`).join('');
+  suggest.style.display = opts.length ? 'block' : 'none';
 }
+</script>
 
 let t; cityInput.addEventListener('input', e=>{
   clearTimeout(t); const q=e.target.value.toLowerCase().trim(); if(!q){suggest.style.display='none';return;}
