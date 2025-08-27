@@ -156,6 +156,10 @@ document.getElementById('f').addEventListener('submit', async e=>{
     const hotels=Array.isArray(data.hotels)?data.hotels:[];
     grid.innerHTML = hotels.length ? hotels.slice(0,8).map(hotelCard).join('') :
       '<div class="muted" style="grid-column:1/-1">No results from Agoda for these dates.</div>';
+
+ * 👉 ADD THIS LINE RIGHT HERE */
+    plotHotels(hotels);
+    
   }catch(_){ grid.innerHTML='<div class="muted" style="grid-column:1/-1">Error fetching results.</div>'; }
 });
 </script>
