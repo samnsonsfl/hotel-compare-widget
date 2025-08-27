@@ -1,0 +1,122 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<title>Lodging Compare</title>
+<style>
+  body{margin:0;background:#0b0f1a;color:#fff;font-family:Inter,system-ui}
+  .wrap{max-width:1200px;margin:28px auto;padding:0 16px}
+  .search{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px;margin-bottom:16px}
+  .row{display:grid;grid-template-columns:1.4fr 1fr 1fr .8fr auto;gap:10px}
+  input,button{height:44px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#fff;padding:0 12px}
+  button{background:linear-gradient(135deg,#6aa1ff,#7b5bff);border:0;font-weight:700;cursor:pointer}
+  .citywrap{position:relative}
+  .suggest{position:absolute;top:46px;left:0;right:0;background:#0f1424;border:1px solid rgba(255,255,255,.12);
+    border-radius:12px;max-height:260px;overflow:auto;display:none;z-index:10}
+  .suggest div{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer}
+  .layout{display:grid;grid-template-columns:420px 1fr 220px;gap:16px}
+  .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden}
+  .hd{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.12);color:#cdd4ff;font-size:14px}
+  .bd{padding:12px}
+  .map{height:420px;background:#0e1322;border:1px solid rgba(255,255,255,.12);border-radius:10px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .hotel{display:flex;gap:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:12px;overflow:hidden}
+  .img{width:120px;height:120px;background:linear-gradient(135deg,#2a3353,#1b2240)}
+  .title{font-weight:700}.meta{font-size:12px;color:#c8d0f6}.price{font-weight:800}
+  .cta{display:inline-block;margin-top:2px;padding:8px 10px;background:rgba(123,91,255,.18);border:1px solid #7b5bff;border-radius:8px;color:#cfd6ff;text-decoration:none;font-weight:700}
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .btn{display:flex;align-items:center;justify-content:center;height:44px;border-radius:10px;border:1px solid rgba(255,255,255,.12);text-decoration:none;color:#fff;font-weight:700}
+  .exp{background:#002a5c}.prc{background:#0071c2}.htl{background:#d32f2f}.bkg{background:#f39c12;color:#222}
+  .muted{color:#a9b3c9;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Search -->
+  <div class="search">
+    <form id="f" class="row">
+      <div class="citywrap">
+        <input id="cityInput" placeholder="City, State/Province, Country" autocomplete="off">
+        <div id="suggest" class="suggest"></div>
+      </div>
+      <input id="ci" type="date"><input id="co" type="date"><input id="guests" type="number" min="1" value="2">
+      <button>Search Comparisons</button>
+      <input id="cityId" type="hidden"><input id="country" type="hidden"><input id="region" type="hidden">
+    </form>
+    <div class="muted" style="margin-top:6px">Pick a suggestion; CityID stays hidden and is only sent to the backend.</div>
+  </div>
+
+  <!-- Layout -->
+  <div class="layout">
+    <div class="card"><div class="hd">Map</div><div class="bd"><div class="map" id="map"></div></div></div>
+    <div class="card"><div class="hd">Agoda Results</div><div class="bd grid" id="grid"></div></div>
+    <div class="card"><div class="hd">Compare on</div><div class="bd stack">
+      <a id="exp" class="btn exp" target="_blank">Expedia</a>
+      <a id="prc" class="btn prc" target="_blank">Priceline</a>
+      <a id="htl" class="btn htl" target="_blank">Hotels.com</a>
+      <a id="bkg" class="btn bkg" target="_blank">Booking.com</a>
+    </div></div>
+  </div>
+</div>
+
+<script>
+let cities=[]; const cityInput = document.getElementById('cityInput');
+const suggest=document.getElementById('suggest'); const cityIdEl=document.getElementById('cityId');
+const countryEl=document.getElementById('country'); const regionEl=document.getElementById('region');
+
+(async ()=>{
+  const res = await fetch('/public/data/agoda_city_ids_all.json'); cities = await res.json();
+  cities = cities.map(x=>({id:+x.city_id, city:String(x.city_name||'').trim(), country:String(x.country||'').trim(), region:String(x.region||'').trim()}))
+                 .filter(x=>x.id && x.city);
+})();
+
+function show(opts){
+  suggest.innerHTML = opts.map(o=>'<div data-id="'+o.id+'" data-city="'+o.city+'" data-country="'+o.country+'" data-region="'+o.region+'">'+
+    [o.city,o.region||null,o.country||null].filter(Boolean).join(', ')+' — CityID '+o.id+'</div>').join('');
+  suggest.style.display = opts.length?'block':'none';
+}
+
+let t; cityInput.addEventListener('input', e=>{
+  clearTimeout(t); const q=e.target.value.toLowerCase().trim(); if(!q){suggest.style.display='none';return;}
+  t=setTimeout(()=>{ const m=cities.filter(o=>(o.city+' '+o.region+' '+o.country).toLowerCase().includes(q)).slice(0,25); show(m); },120);
+});
+suggest.addEventListener('click', e=>{
+  const row=e.target.closest('div[data-id]'); if(!row) return;
+  const id=row.dataset.id, c=row.dataset.city, country=row.dataset.country||'', reg=row.dataset.region||'';
+  cityInput.value=[c,reg||null,country||null].filter(Boolean).join(', ');
+  cityIdEl.value=id; countryEl.value=country; regionEl.value=reg; suggest.style.display='none';
+});
+document.addEventListener('click',e=>{ if(!suggest.contains(e.target)&&e.target!==cityInput) suggest.style.display='none'; });
+
+function hotelCard(h){
+  const img=h.imageURL||''; const t=(h.hotelName||'').replace(/</g,'&lt;');
+  const price=h.dailyRate? new Intl.NumberFormat('en-US',{style:'currency',currency:(h.currency||'USD')}).format(h.dailyRate):'Check site';
+  const meta=(h.starRating||'–')+'★ • '+(h.reviewScore||'–')+'/10'; const link=h.landingURL||'#';
+  return '<div class="hotel"><div class="img" style="'+(img?('background:url(\''+img+'\') center/cover'):'')+'"></div>'+
+    '<div style="padding:10px 12px"><div class="title">'+t+'</div><div class="meta">'+meta+'</div>'+
+    '<div class="price">'+price+'</div><a class="cta" href="'+link+'" target="_blank">Book</a></div></div>';
+}
+function setDeeplinks(obj){
+  const dest=encodeURIComponent([obj.label,obj.country].filter(Boolean).join(', '));
+  document.getElementById('exp').href='https://www.expedia.com/Hotel-Search?destination='+dest+'&startDate='+obj.ci+'&endDate='+obj.co+'&adults='+obj.guests+'&partner=YOUR_EXPEDIA_ATTR';
+  document.getElementById('prc').href='https://www.priceline.com/relax/at?product=hotels&kw='+dest+'&checkin='+obj.ci+'&checkout='+obj.co+'&adults='+obj.guests+'&refid=YOUR_PCLN_REFID';
+  document.getElementById('htl').href='https://www.hotels.com/Hotel-Search?destination='+dest+'&startDate='+obj.ci+'&endDate='+obj.co+'&adults='+obj.guests;
+  document.getElementById('bkg').href='https://www.booking.com/searchresults.html?ss='+dest+'&checkin='+obj.ci+'&checkout='+obj.co+'&group_adults='+obj.guests;
+}
+document.getElementById('f').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const grid=document.getElementById('grid'); grid.innerHTML='<div class="muted" style="grid-column:1/-1">Loading…</div>';
+  const label=cityInput.value, ci=document.getElementById('ci').value, co=document.getElementById('co').value;
+  const guests=document.getElementById('guests').value||2, cityId=cityIdEl.value, country=countryEl.value;
+  setDeeplinks({label:label,country:country,ci:ci,co:co,guests:guests});
+
+  try{
+    const r=await fetch('/api/search?cityId='+encodeURIComponent(cityId)+'&city='+encodeURIComponent(label)+'&checkIn='+encodeURIComponent(ci)+'&checkOut='+encodeURIComponent(co)+'&adults='+encodeURIComponent(guests)+'&rooms=1');
+    const data=await r.json();
+    const hotels=Array.isArray(data.hotels)?data.hotels:[];
+    grid.innerHTML = hotels.length ? hotels.slice(0,8).map(hotelCard).join('') :
+      '<div class="muted" style="grid-column:1/-1">No results from Agoda for these dates.</div>';
+  }catch(_){ grid.innerHTML='<div class="muted" style="grid-column:1/-1">Error fetching results.</div>'; }
+});
+</script>
+</body></html>
