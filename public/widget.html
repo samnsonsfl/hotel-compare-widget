@@ -91,6 +91,14 @@ function plotHotels(hotels){
     <div class="muted" style="margin-top:6px">Pick a suggestion; CityID stays hidden and is only sent to the backend.</div>
   </div>
 
+  plotHotels(hotels);
+
+  } catch(err) {
+    console.error(err);
+    grid.innerHTML='<div class="muted" style="grid-column:1/-1">Error fetching results.</div>';
+  }
+});
+  
   <!-- Layout -->
   <div class="layout">
     <div class="card"><div class="hd">Map</div><div class="bd"><div class="map" id="map"></div></div></div>
