@@ -29,6 +29,41 @@
   .muted{color:#a9b3c9;font-size:12px}
 </style>
 </head>
+  <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDGpB80x5TQhSJeEhGnXvxrrjRrO7tNLjA&callback=initMap"></script>
+<script>
+let map, markers = [];
+function initMap(){
+  map = new google.maps.Map(document.getElementById('map'), {
+    center: { lat: 25.79065, lng: -80.13005 }, // default: Miami Beach
+    zoom: 12,
+    styles: [{featureType:"poi",stylers:[{visibility:"off"}]}]
+  });
+}
+function clearMarkers(){ markers.forEach(m=>m.setMap(null)); markers=[]; }
+function plotHotels(hotels){
+  if(!window.google || !map) return; // map not ready yet
+  clearMarkers();
+  const bounds = new google.maps.LatLngBounds();
+  hotels.forEach(h=>{
+    if(typeof h.latitude === 'number' && typeof h.longitude === 'number'){
+      const pos = { lat: h.latitude, lng: h.longitude };
+      const m = new google.maps.Marker({ position: pos, map, title: h.hotelName });
+      const html = `<div style="min-width:200px">
+        <div style="font-weight:700">${h.hotelName}</div>
+        <div>${h.starRating || '–'}★ • ${h.reviewScore || '–'}/10</div>
+        <div style="font-weight:800">${h.dailyRate ? new Intl.NumberFormat('en-US',{style:'currency',currency:h.currency||'USD'}).format(h.dailyRate) : ''}</div>
+        ${h.landingURL ? `<a href="${h.landingURL}" target="_blank">Book on Agoda</a>` : ''}
+      </div>`;
+      const infowindow = new google.maps.InfoWindow({ content: html });
+      m.addListener('click', ()=> infowindow.open({ anchor:m, map }));
+      markers.push(m);
+      bounds.extend(pos);
+    }
+  });
+  if (!bounds.isEmpty()) map.fitBounds(bounds);
+}
+</script>
+
 <body>
 <div class="wrap">
 
