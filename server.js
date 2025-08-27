@@ -24,10 +24,14 @@ app.get('/api/search', async (req, res) => {
       return res.status(400).json({ error: 'cityId, checkIn, checkOut required' });
     }
 
-    // Grab your Agoda credentials from env
-    const siteId = process.env.1948292;
-    const apiKey = process.env.1948292:71343e83-15b3-4fd9-899f-8766e525ccc2;
-    const affiliateCid = process.env.AGODA_AFFILIATE_CID; // for deeplinks if needed
+   // Agoda credentials from Render → Environment
+const siteId       = process.env.AGODA_SITEID       || process.env['1948292'];
+const apiKey       = process.env.AGODA_APIKEY       || process.env['1948292:71343e83-15b3-4fd9-899f-8766e525ccc2'];
+const affiliateCid = process.env.AGODA_AFFILIATE_CID|| process.env['AGODA_AFFILIATE_CID'];
+
+if (!siteId || !apiKey) {
+  console.error('Missing AGODA_SITEID or AGODA_APIKEY environment variables.');
+}
 
     // Example Affiliate Lite / Long-Tail endpoint (name varies in docs)
     // Replace BASE_URL + params to match your exact spec.
