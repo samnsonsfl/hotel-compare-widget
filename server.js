@@ -15,6 +15,10 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
 
+app.get('/api/maps-key', (req, res) => {
+  res.json({ key: process.env.GOOGLE_MAPS_API_KEY });
+});
+
 const axios = require('axios');
 
 app.get('/api/search', async (req, res) => {
