@@ -8,6 +8,7 @@ const app = express();
 
 // Serve static files from /public
 app.use('/public', express.static(path.join(__dirname, 'public')));
+app.get('/widget', (req, res) => res.sendFile(path.join(__dirname, 'public', 'widget.html')));
 
 // Health check
 app.get('/api/health', (req, res) => {
